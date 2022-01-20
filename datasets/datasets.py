@@ -35,4 +35,5 @@ for i in range(len(xml_file_path_list)):   # 사실상 여기서 for문은 필�
   label = np.zeros((7, 7, 25), dtype = float)
   
   for obj in xml_file['annotation']['object']:
-    
+    xmin = float(obj['bndbox']['xmin'])
+    ymin = float(obj['bndbox']['ymin'])
