@@ -3,6 +3,8 @@ from tqdm import tqdm
 from xml.etree.ElementTree import parse
 import xmltodict
 import numpy as np
+import cv2
+import tensorflow as tf
 
 '''
 
@@ -154,12 +156,32 @@ def get_label_fromImage(xml_file_path, Classes_inDataSet):
 
     return label # np array로 반환
   
+
+def make_dataset(image_file_path_list, xml_file_path_list, Classes_inDataSet) :
+    
+    image_dataset = []
+    label_dataset = []
+
+    for i in tqdm(range(0, len(image_file_path_list)), desc = "make dataset"):
+        image = cv2.imread(image_file_path_list[i]) 
+        image = cv2.resize(image, (224, 224))/ 255.0 # 이미지를 넘파이 배열로 불러온 뒤 255로 나눠 픽셀별 R, G, B를 0~1사이의 값으로 만들어버린다.
+        label = get_label_fromImage(xml_file_path_list[i], Classes_inDataSet)
+        
+        image_dataset.append(image)
+        label_dataset.append(label)
+    
+    image_dataset = np.array(image_dataset, dtype="object")
+    label_dataset = np.array(label_dataset, dtype="object")
+    
+    image_dataset = np.reshape(image_dataset, (-1, 224, 224, 3)).astype(np.float32)
+    label_dataset = np.reshape(label_dataset, (-1, 7, 7, 25))
+
+    return image_dataset, tf.convert_to_tensor(label_dataset, dtype=tf.float32)
+
   
   
   
-Classes_inDataSet = get_Classes_inImage(xml_file_path_list)
-label = get_label_fromImage(xml_file_path_list, Classes_inDataSet)
-print(label)
+Classes_inDataSet = get_Classes_inImage()
 
 
 
