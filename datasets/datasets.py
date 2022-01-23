@@ -1,3 +1,4 @@
+import torch
 from glob import glob
 from tqdm import tqdm
 from xml.etree.ElementTree import parse
@@ -6,39 +7,20 @@ import numpy as np
 import cv2
 import tensorflow as tf
 
-'''
 
-# xml tag로 가져오는 코드 더 불편한듯 ;; 
-doc = glob("C:/Users/82108/Desktop/my_model/car_plate_datasets/annotations/*.xml") # 파일 주소
-print(sorted(doc[:15]) )
+train_x_path = './car_plate_datasets/images'
+train_y_path = './car_plate_datasets/annotations'
 
-bbox_list = []
-for i in doc:
-  doc = parse(i)
-#root 노드 가져오기
-  root = doc.getroot()
-  bndbox_tag = root.find("object").find("bndbox")
-  bbox_list.append(int(bndbox_tag.findtext("xmin")))
-  #bbox_list.append(np.float32(object_tag.findtext("ymin")))
-  #bbox_list.append(np.float32(object_tag.findtext("xmax")))
-  #bbox_list.append(np.float32(object_tag.findtext("ymax")))
+image_file_path_list   = sorted([ x for x in glob(train_x_path + '\**')])
+xml_file_path_list     = sorted([ y for y in glob(train_y_path + '\**')])
+print(len(image_file_path_list))
+print(len(xml_file_path_list))
 
-# print(bbox_list)
-
-'''
-
-train_x_path = '../car_plate_datasets/images'
-train_y_path = '../car_plate_datasets/annotations'
-
-img_file_path_list = sorted([ x for x in glob(train_x_path + '/**')])
-xml_file_path_list   = sorted([ x for x in glob(train_y_path + '/**')])
-
-
-# 데이터셋에 있는 클래스 종류 알아내기
-def get_Classes_inImage(xml_file_path_list):
+# 데이터셋에 존재하는 클래스가 얼마나 있는지 알아낸다
+def get_Classes_inImage(xml_file_list):
     Classes_inDataSet = []
 
-    for xml_file_path in xml_file_path_list: 
+    for xml_file_path in xml_file_list: 
 
         f = open(xml_file_path)
         xml_file = xmltodict.parse(f.read())
@@ -51,15 +33,14 @@ def get_Classes_inImage(xml_file_path_list):
             Classes_inDataSet.append(xml_file['annotation']['object']['name'].lower()) 
         f.close()
 
-    Classes_inDataSet = list(set(Classes_inDataSet))
-    Classes_inDataSet.sort() # 알파벳 순으로 정렬
+    Classes_inDataSet = list(set(Classes_inDataSet)) # set은 중복된걸 다 제거하고 유니크한? 아무튼 하나만 가져온다. 그걸 리스트로 만든다
+    Classes_inDataSet.sort() # 정렬
 
     return Classes_inDataSet
 
-
-
+# 이미지에 어떤 Ground Truth Box가 있는지(label 휙득)
 def get_label_fromImage(xml_file_path, Classes_inDataSet):
-    
+
     f = open(xml_file_path)
     xml_file = xmltodict.parse(f.read()) 
 
@@ -71,6 +52,7 @@ def get_label_fromImage(xml_file_path, Classes_inDataSet):
     try:
         for obj in xml_file['annotation']['object']:
             
+            # class의 index 휙득
             class_index = Classes_inDataSet.index(obj['name'].lower())
             
             # min, max좌표 얻기
@@ -90,7 +72,7 @@ def get_label_fromImage(xml_file_path, Classes_inDataSet):
             y = (y_min + y_max)/2.0
             w = x_max - x_min
             h = y_max - y_min
-
+            
             # x,y가 속한 cell알아내기
             x_cell = int(x/32) # 0~6
             y_cell = int(y/32) # 0~6
@@ -110,9 +92,8 @@ def get_label_fromImage(xml_file_path, Classes_inDataSet):
             label[y_cell][x_cell][3] = h
             label[y_cell][x_cell][4] = 1.0
             label[y_cell][x_cell][class_index_inCell] = 1.0
-
-
-    # single-object in image
+            
+        # single-object in image
     except TypeError as e : 
         # class의 index 휙득
         class_index = Classes_inDataSet.index(xml_file['annotation']['object']['name'].lower())
@@ -155,17 +136,24 @@ def get_label_fromImage(xml_file_path, Classes_inDataSet):
         label[y_cell][x_cell][class_index_inCell] = 1.0
 
     return label # np array로 반환
-  
 
+
+# 데이터 증강을 할거면 여기서 해야한다.
 def make_dataset(image_file_path_list, xml_file_path_list, Classes_inDataSet) :
-    
+
     image_dataset = []
     label_dataset = []
 
     for i in tqdm(range(0, len(image_file_path_list)), desc = "make dataset"):
         image = cv2.imread(image_file_path_list[i]) 
         image = cv2.resize(image, (224, 224))/ 255.0 # 이미지를 넘파이 배열로 불러온 뒤 255로 나눠 픽셀별 R, G, B를 0~1사이의 값으로 만들어버린다.
+        
         label = get_label_fromImage(xml_file_path_list[i], Classes_inDataSet)
+        
+        # 여기서 데이터 증강을 시도해야한다고 생각한다
+        # 랜덤한 값을 뽑아내고 만약 그 값이 0.5를 넘기면 데이터 증강의 대상이 되는 이미지가 되는거다.
+        
+        
         
         image_dataset.append(image)
         label_dataset.append(label)
@@ -178,33 +166,12 @@ def make_dataset(image_file_path_list, xml_file_path_list, Classes_inDataSet) :
 
     return image_dataset, tf.convert_to_tensor(label_dataset, dtype=tf.float32)
 
-  
-  
-  
-Classes_inDataSet = get_Classes_inImage()
 
 
+Classes_inDataSet = get_Classes_inImage(xml_file_path_list)
 
+train_image_dataset, train_label_dataset = make_dataset(image_file_path_list, xml_file_path_list, Classes_inDataSet)
+# val_image_dataset, val_label_dataset = make_dataset(test_image_file_path_list[:1024], test_xml_file_path_list[:1024], Classes_inDataSet)
+# test_image_dataset, test_label_dataset = make_dataset(test_image_file_path_list[1024:], test_xml_file_path_list[1024:], Classes_inDataSet)
 
-
-
-
-
-
-
-
-'''
-
-for i in range(len(xml_file_path_list)):   # 사실상 여기서 for문은 필요없음. 
-  f = open(xml_file_path_list[i])
-  xml_file = xmltodict.parse(f.read())
-  image_height = float(xml_file['annotation']['size']["height"])
-  image_width  = float(xml_file['annotation']['size']['width'])
-  label = np.zeros((7, 7, 25), dtype = float)
-  
-  for obj in xml_file['annotation']['object']:
-    print(float(obj['bndbox']['xmin']))
-    xmin = float(obj['bndbox']['xmin'])
-    ymin = float(obj['bndbox']['ymin'])
-    
-'''
+print(train_image_dataset)
