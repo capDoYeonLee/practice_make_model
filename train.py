@@ -376,7 +376,7 @@ YOLO.add(tf.keras.layers.Dense(1470, kernel_initializer = initializer, kernel_re
 YOLO.add(tf.keras.layers.Reshape((7, 7, 30), name = 'output', dtype='float32'))
 
 
-BATCH_SIZE = 64
+BATCH_SIZE = 1
 prev_epoch = 119 # loss가 NaN이 되기 직전에 도달했던 epoch
 EPOCH = (135 - prev_epoch)
 
@@ -393,7 +393,7 @@ def lr_schedule(epoch, lr): # epoch는 0부터 시작
         return lr
 
 # loss 제일 낮을 때 가중치 저장
-filename = 'yolo-minkyuKim_2.h5'
+filename = 'yolo_v1_captain.h5'
 
 checkpoint = ModelCheckpoint(filename,             # file명을 지정합니다
                              verbose=1,            # 로그를 출력합니다
