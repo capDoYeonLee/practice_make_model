@@ -6,7 +6,7 @@ import tensorflow as tf
 from glob import glob
 from tensorflow.keras.callbacks import ModelCheckpoint
 # from loss import yolo_multitask_loss
-
+# test 
 train_x_path = './car_plate_datasets/images'
 train_y_path = './car_plate_datasets/annotations'
 
